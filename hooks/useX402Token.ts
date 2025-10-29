@@ -13,11 +13,27 @@ interface CooldownInfo {
   formattedTime: string;
 }
 
-// Get total tokens spent by user (stored in localStorage)
+// LOCALSTORAGE-BASED TOKEN SYSTEM (NO BLOCKCHAIN)
+// Get total tokens user has claimed
+function getTotalClaimed(walletAddress: string): number {
+  if (typeof window === 'undefined') return 0;
+  const claimed = localStorage.getItem(`x402_claimed_${walletAddress}`);
+  return claimed ? parseInt(claimed) : 0;
+}
+
+// Get total tokens user has spent
 function getTotalSpent(walletAddress: string): number {
   if (typeof window === 'undefined') return 0;
   const spent = localStorage.getItem(`x402_spent_${walletAddress}`);
   return spent ? parseInt(spent) : 0;
+}
+
+// Add tokens when user claims from faucet
+function addToClaimed(walletAddress: string, amount: number): void {
+  if (typeof window === 'undefined') return;
+  const currentClaimed = getTotalClaimed(walletAddress);
+  const newClaimed = currentClaimed + amount;
+  localStorage.setItem(`x402_claimed_${walletAddress}`, newClaimed.toString());
 }
 
 // Update total tokens spent
@@ -26,6 +42,13 @@ function addToSpent(walletAddress: string, amount: number): void {
   const currentSpent = getTotalSpent(walletAddress);
   const newSpent = currentSpent + amount;
   localStorage.setItem(`x402_spent_${walletAddress}`, newSpent.toString());
+}
+
+// Get available balance (claimed - spent)
+function getAvailableBalance(walletAddress: string): number {
+  const claimed = getTotalClaimed(walletAddress);
+  const spent = getTotalSpent(walletAddress);
+  return Math.max(0, claimed - spent);
 }
 
 export function useX402Token() {
@@ -55,7 +78,7 @@ export function useX402Token() {
     });
   }, [walletAddress]);
 
-  // Fetch balance from API
+  // Fetch balance (x402 from localStorage, SOL from API)
   const fetchBalance = useCallback(async () => {
     if (!walletAddress) return;
     
@@ -63,6 +86,10 @@ export function useX402Token() {
     setError(null);
     
     try {
+      // Get x402 balance from localStorage
+      const x402Balance = getAvailableBalance(walletAddress);
+      
+      // Get real SOL balance from API
       const response = await fetch(`/api/balance?wallet=${walletAddress}`);
       const data = await response.json();
       
@@ -70,13 +97,9 @@ export function useX402Token() {
         throw new Error(data.error || 'Failed to fetch balance');
       }
       
-      // Get on-chain balance and subtract total spent
-      const totalSpent = getTotalSpent(walletAddress);
-      const availableBalance = Math.max(0, data.x402Balance - totalSpent);
-      
       setBalance({
-        x402: availableBalance,
-        sol: data.solBalance
+        x402: x402Balance,
+        sol: data.solBalance || 0
       });
     } catch (err: any) {
       setError(err.message);
@@ -86,47 +109,7 @@ export function useX402Token() {
     }
   }, [walletAddress]);
 
-  // Claim SOL airdrop
-  const claimSOL = useCallback(async () => {
-    if (!walletAddress) {
-      setError('Wallet not connected');
-      return null;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/faucet/airdrop-sol', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress, amount: 1 })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to claim SOL');
-      }
-      
-      // Update cooldown
-      setCooldown(walletAddress);
-      updateCooldown();
-      
-      // Refresh balance
-      await fetchBalance();
-      
-      return data.signature;
-    } catch (err: any) {
-      setError(err.message);
-      console.error('Error claiming SOL:', err);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [walletAddress, fetchBalance, updateCooldown]);
-
-  // Claim x402 tokens
+  // Claim x402 tokens (localStorage only, no blockchain)
   const claimX402 = useCallback(async (amount: number) => {
     if (!walletAddress) {
       setError('Wallet not connected');
@@ -149,6 +132,9 @@ export function useX402Token() {
         throw new Error(data.error || 'Failed to claim tokens');
       }
       
+      // Add to claimed amount in localStorage
+      addToClaimed(walletAddress, amount);
+      
       // Update cooldown
       setCooldown(walletAddress);
       updateCooldown();
@@ -156,7 +142,7 @@ export function useX402Token() {
       // Refresh balance
       await fetchBalance();
       
-      return data.signature;
+      return data.success;
     } catch (err: any) {
       setError(err.message);
       console.error('Error claiming tokens:', err);
@@ -234,7 +220,6 @@ export function useX402Token() {
     error,
     walletAddress,
     fetchBalance,
-    claimSOL,
     claimX402,
     hasEnoughTokens,
     deductTokens

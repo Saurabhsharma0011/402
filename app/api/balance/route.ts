@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getX402Balance, getSolBalance } from '@/utils/x402Token';
+import { getSolBalance } from '@/utils/x402Token';
 import { checkRateLimit, getClientIdentifier, isValidSolanaAddress } from '@/lib/api-security';
 
 export async function GET(request: NextRequest) {
@@ -26,15 +26,11 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Get both SOL and token balances
-    const [x402Balance, solBalance] = await Promise.all([
-      getX402Balance(walletAddress),
-      getSolBalance(walletAddress)
-    ]);
+    // Get real SOL balance from mainnet (x402 tokens tracked in localStorage)
+    const solBalance = await getSolBalance(walletAddress);
     
     return NextResponse.json({
       success: true,
-      x402Balance,
       solBalance,
       wallet: walletAddress,
       rateLimit: {

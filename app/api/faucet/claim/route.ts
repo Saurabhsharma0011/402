@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { transferX402Tokens } from '@/utils/x402Token';
 import { checkRateLimit, getClientIdentifier, isValidSolanaAddress } from '@/lib/api-security';
 
 export async function POST(request: NextRequest) {
@@ -10,6 +9,14 @@ export async function POST(request: NextRequest) {
     if (!walletAddress || !isValidSolanaAddress(walletAddress)) {
       return NextResponse.json(
         { error: 'Invalid wallet address' },
+        { status: 400 }
+      );
+    }
+
+    // Validate amount
+    if (!amount || amount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid amount' },
         { status: 400 }
       );
     }
@@ -25,14 +32,13 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Transfer tokens from faucet to user
-    const signature = await transferX402Tokens(walletAddress, amount);
+    // No blockchain transfer - tokens are tracked in localStorage on client side
+    console.log(`[FAUCET] ${walletAddress} claimed ${amount} x402 tokens (localStorage)`);
     
     return NextResponse.json({
       success: true,
-      signature,
       amount,
-      message: `Successfully transferred ${amount} x402 tokens`,
+      message: `Successfully claimed ${amount} x402 tokens`,
       rateLimit: {
         remaining: rateLimit.remaining
       }

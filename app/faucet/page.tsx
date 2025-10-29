@@ -14,7 +14,6 @@ export default function FaucetPage() {
     cooldown,
     loading,
     error,
-    claimSOL,
     claimX402
   } = useX402Token();
 
@@ -25,21 +24,12 @@ export default function FaucetPage() {
     }
   }, [authenticated, router]);
 
-  const handleClaimSOL = async () => {
-    if (!cooldown.canClaim) return;
-    
-    const signature = await claimSOL();
-    if (signature) {
-      alert(`Success! Transaction: ${signature.slice(0, 20)}...`);
-    }
-  };
-
   const handleClaimX402 = async () => {
     if (!cooldown.canClaim) return;
     
-    const signature = await claimX402(X402_CONFIG.FAUCET_AMOUNT);
-    if (signature) {
-      alert(`Success! Claimed ${X402_CONFIG.FAUCET_AMOUNT.toLocaleString()} x402 tokens\nTransaction: ${signature.slice(0, 20)}...`);
+    const result = await claimX402(X402_CONFIG.FAUCET_AMOUNT);
+    if (result) {
+      alert(`Success! Claimed ${X402_CONFIG.FAUCET_AMOUNT.toLocaleString()} x402 tokens`);
     }
   };
 
@@ -61,7 +51,7 @@ export default function FaucetPage() {
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4">x402 Faucet</h1>
           <p className="text-xl text-gray-300">
-            Get free SOL and x402 tokens on Devnet
+            Claim free x402 tokens to use applications
           </p>
           <p className="text-sm text-gray-400 mt-2">
             Wallet: {user?.wallet?.address?.slice(0, 8)}...{user?.wallet?.address?.slice(-6)}
@@ -73,16 +63,18 @@ export default function FaucetPage() {
           <h2 className="text-2xl font-bold mb-4">Your Balances</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-gradient-to-br from-orange-500/20 to-yellow-500/20 rounded-xl p-6">
-              <div className="text-sm text-gray-300 mb-2">SOL Balance</div>
+              <div className="text-sm text-gray-300 mb-2">SOL Balance (Mainnet)</div>
               <div className="text-4xl font-bold">
                 {loading ? '...' : balance.sol.toFixed(4)} SOL
               </div>
+              <div className="text-xs text-gray-400 mt-2">Real mainnet balance</div>
             </div>
             <div className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl p-6">
               <div className="text-sm text-gray-300 mb-2">x402 Token Balance</div>
               <div className="text-4xl font-bold">
                 {loading ? '...' : balance.x402.toLocaleString()} x402
               </div>
+              <div className="text-xs text-gray-400 mt-2">Available for use</div>
             </div>
           </div>
         </div>
@@ -104,30 +96,8 @@ export default function FaucetPage() {
         )}
 
         {/* Faucet Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          {/* Claim SOL */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8">
-            <div className="text-center mb-6">
-              <div className="text-6xl mb-4">💧</div>
-              <h3 className="text-3xl font-bold mb-2">Claim 1 SOL</h3>
-              <p className="text-gray-300">
-                Get Devnet SOL for transaction fees
-              </p>
-            </div>
-            <button
-              onClick={handleClaimSOL}
-              disabled={!cooldown.canClaim || loading}
-              className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all ${
-                !cooldown.canClaim || loading
-                  ? 'bg-gray-500 cursor-not-allowed opacity-50'
-                  : 'bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 hover:scale-105'
-              }`}
-            >
-              {loading ? 'Processing...' : 'Claim SOL'}
-            </button>
-          </div>
-
-          {/* Claim x402 */}
+        <div className="max-w-md mx-auto mb-8">
+          {/* Claim x402 - Centered */}
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8">
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🪙</div>
@@ -165,20 +135,20 @@ export default function FaucetPage() {
               <span>You can claim once every <strong>30 minutes</strong></span>
             </li>
             <li className="flex items-start">
-              <span className="mr-3">💰</span>
-              <span>Claim <strong>1 SOL</strong> for transaction fees (gas)</span>
+              <span className="mr-3">🪙</span>
+              <span>Claim <strong>{X402_CONFIG.FAUCET_AMOUNT.toLocaleString()} x402 tokens</strong> per claim</span>
             </li>
             <li className="flex items-start">
-              <span className="mr-3">🪙</span>
-              <span>Claim <strong>{X402_CONFIG.FAUCET_AMOUNT.toLocaleString()} x402 tokens</strong> to use applications</span>
+              <span className="mr-3">💾</span>
+              <span>Tokens are tracked in your browser (localStorage)</span>
             </li>
             <li className="flex items-start">
               <span className="mr-3">🔗</span>
-              <span>All transactions happen on <strong>Solana Devnet</strong></span>
+              <span>Connected to <strong>Solana Mainnet</strong> for real wallet data</span>
             </li>
             <li className="flex items-start">
-              <span className="mr-3">🛡️</span>
-              <span>Your tokens are stored on-chain as SPL tokens</span>
+              <span className="mr-3">✨</span>
+              <span>Use tokens to interact with all x402 applications</span>
             </li>
           </ul>
         </div>

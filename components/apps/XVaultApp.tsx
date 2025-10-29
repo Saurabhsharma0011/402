@@ -1,56 +1,101 @@
 'use client';
 
 import { usePrivy } from '@privy-io/react-auth';
+import { useState, useEffect } from 'react';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+
+interface Transaction {
+  signature: string;
+  timestamp: number;
+  type: string;
+  status: 'success' | 'error';
+}
 
 export default function XVaultApp() {
   const { user } = usePrivy();
+  const walletAddress = user?.wallet?.address;
+  
+  const [solBalance, setSolBalance] = useState<number>(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const assets = [
-    { symbol: 'SOL', name: 'Solana', balance: '2.5', value: '$125.00', change: '+5.2%' },
-    { symbol: 'USDC', name: 'USD Coin', balance: '100.00', value: '$100.00', change: '0%' },
-    { symbol: 'BONK', name: 'Bonk', balance: '1M', value: '$25.50', change: '+12.8%' },
-  ];
+  useEffect(() => {
+    if (!walletAddress) return;
 
-  const recentActivity = [
-    { type: 'x402pay', action: 'Sent 0.5 SOL', time: '2 hours ago', cost: '0.001 USDC' },
-    { type: 'x402ai', action: 'AI Query', time: '5 hours ago', cost: '0.005 USDC' },
-    { type: 'x402scan', action: 'Token Scan', time: '1 day ago', cost: '0.003 USDC' },
-    { type: 'x402fetch', action: 'API Call', time: '2 days ago', cost: '0.002 USDC' },
-  ];
+    const fetchWalletData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const rpcUrl = process.env.NEXT_PUBLIC_HELIUS_RPC_URL || 'https://api.mainnet-beta.solana.com';
+        const connection = new Connection(rpcUrl, 'confirmed');
+        const publicKey = new PublicKey(walletAddress);
+
+        const balance = await connection.getBalance(publicKey);
+        setSolBalance(balance / LAMPORTS_PER_SOL);
+
+        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
+        
+        const txs: Transaction[] = signatures.map(sig => ({
+          signature: sig.signature,
+          timestamp: sig.blockTime ? sig.blockTime * 1000 : Date.now(),
+          type: sig.err ? 'Failed Transaction' : 'Transaction',
+          status: sig.err ? 'error' : 'success'
+        }));
+
+        setTransactions(txs);
+      } catch (err: any) {
+        console.error('Error fetching wallet data:', err);
+        setError(err.message || 'Failed to fetch wallet data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWalletData();
+  }, [walletAddress]);
+
+  const timeAgo = (timestamp: number) => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+  };
 
   return (
     <div className="h-full overflow-auto p-6 space-y-6">
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total Balance */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-green-400/10 border-2 border-green-400/50 rounded-lg p-6">
-          <div className="text-green-400/60 text-sm font-mono mb-2">Total Balance</div>
-          <div className="text-green-400 text-3xl font-mono font-bold">$250.50</div>
-          <div className="text-green-400 text-sm font-mono mt-2">+8.5% this month</div>
+          <div className="text-green-400/60 text-sm font-mono mb-2">SOL Balance</div>
+          {loading ? (
+            <div className="text-green-400 text-xl font-mono">Loading...</div>
+          ) : error ? (
+            <div className="text-red-400 text-sm font-mono">{error}</div>
+          ) : (
+            <>
+              <div className="text-green-400 text-3xl font-mono font-bold">
+                {solBalance.toFixed(4)} SOL
+              </div>
+              <div className="text-green-400/60 text-sm font-mono mt-2">Mainnet Balance</div>
+            </>
+          )}
         </div>
 
-        {/* XP Points */}
         <div className="bg-purple-500/10 border-2 border-purple-500/50 rounded-lg p-6">
-          <div className="text-purple-400/60 text-sm font-mono mb-2">XP Points</div>
-          <div className="text-purple-400 text-3xl font-mono font-bold">1,250</div>
-          <div className="text-purple-400 text-sm font-mono mt-2">Level 5 User</div>
-        </div>
-
-        {/* Total Spent */}
-        <div className="bg-yellow-500/10 border-2 border-yellow-500/50 rounded-lg p-6">
-          <div className="text-yellow-400/60 text-sm font-mono mb-2">Total Spent</div>
-          <div className="text-yellow-400 text-3xl font-mono font-bold">$12.50</div>
-          <div className="text-yellow-400 text-sm font-mono mt-2">This month</div>
+          <div className="text-purple-400/60 text-sm font-mono mb-2">Recent Transactions</div>
+          <div className="text-purple-400 text-3xl font-mono font-bold">{transactions.length}</div>
+          <div className="text-purple-400/60 text-sm font-mono mt-2">Last 10 transactions</div>
         </div>
       </div>
 
-      {/* Wallet Info */}
       <div className="bg-black border-2 border-green-400/30 rounded-lg p-6">
         <h3 className="text-green-400 font-mono font-bold text-lg mb-4">Wallet Information</h3>
         <div className="space-y-3">
           <div className="flex justify-between font-mono text-sm">
             <span className="text-green-400/60">Address:</span>
-            <span className="text-green-400">{user?.wallet?.address?.slice(0, 20)}...</span>
+            <span className="text-green-400 break-all">{walletAddress}</span>
           </div>
           <div className="flex justify-between font-mono text-sm">
             <span className="text-green-400/60">Email:</span>
@@ -67,89 +112,61 @@ export default function XVaultApp() {
         </div>
       </div>
 
-      {/* Assets */}
       <div className="bg-black border-2 border-green-400/30 rounded-lg p-6">
-        <h3 className="text-green-400 font-mono font-bold text-lg mb-4">Your Assets</h3>
-        <div className="space-y-3">
-          {assets.map((asset) => (
-            <div
-              key={asset.symbol}
-              className="flex items-center justify-between p-4 bg-green-400/5 border border-green-400/20 
-                       rounded hover:bg-green-400/10 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-green-400/20 border border-green-400/50 rounded-full 
-                             flex items-center justify-center font-mono font-bold text-green-400">
-                  {asset.symbol[0]}
-                </div>
-                <div>
-                  <div className="font-mono font-bold text-green-400">{asset.symbol}</div>
-                  <div className="text-green-400/60 text-xs font-mono">{asset.name}</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-mono font-bold text-green-400">{asset.balance} {asset.symbol}</div>
-                <div className="text-green-400/60 text-xs font-mono">{asset.value}</div>
-                <div className={`text-xs font-mono ${asset.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
-                  {asset.change}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-black border-2 border-green-400/30 rounded-lg p-6">
-        <h3 className="text-green-400 font-mono font-bold text-lg mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {recentActivity.map((activity, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between p-4 bg-green-400/5 border border-green-400/20 
-                       rounded hover:bg-green-400/10 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="text-2xl">
-                  {activity.type === 'x402pay' && '💳'}
-                  {activity.type === 'x402ai' && '🤖'}
-                  {activity.type === 'x402scan' && '🔍'}
-                  {activity.type === 'x402fetch' && '🌐'}
-                </div>
-                <div>
-                  <div className="font-mono text-green-400">{activity.type}</div>
-                  <div className="text-green-400/60 text-xs font-mono">{activity.action}</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-mono text-green-400 text-sm">{activity.cost}</div>
-                <div className="text-green-400/60 text-xs font-mono">{activity.time}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* XP Progress */}
-      <div className="bg-purple-500/10 border-2 border-purple-500/30 rounded-lg p-6">
-        <h3 className="text-purple-400 font-mono font-bold text-lg mb-4">XP Progress</h3>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm font-mono mb-2">
-              <span className="text-purple-400/60">Level 5</span>
-              <span className="text-purple-400">1,250 / 2,000 XP</span>
-            </div>
-            <div className="w-full bg-black border border-purple-500/30 rounded-full h-4">
-              <div 
-                className="bg-purple-500 h-full rounded-full transition-all duration-500"
-                style={{ width: '62.5%' }}
-              />
-            </div>
+        <h3 className="text-green-400 font-mono font-bold text-lg mb-4">Transaction History</h3>
+        
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="text-green-400 font-mono animate-pulse">Loading transactions...</div>
           </div>
-          <div className="text-purple-400/60 text-xs font-mono">
-            750 XP until Level 6 • Earn XP by using x402 apps
+        ) : error ? (
+          <div className="text-center py-8">
+            <div className="text-red-400 font-mono text-sm">{error}</div>
           </div>
-        </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-green-400/60 font-mono">No transactions found</div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {transactions.map((tx) => (
+              <div
+                key={tx.signature}
+                className="flex items-center justify-between p-4 bg-green-400/5 border border-green-400/20 rounded hover:bg-green-400/10 transition-colors"
+              >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="text-2xl">
+                    {tx.status === 'success' ? '✅' : '❌'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-green-400 text-sm">{tx.type}</div>
+                    <div className="text-green-400/60 text-xs font-mono truncate">
+                      {tx.signature.slice(0, 30)}...
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right ml-4">
+                  <div className="text-green-400/60 text-xs font-mono whitespace-nowrap">
+                    {timeAgo(tx.timestamp)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {transactions.length > 0 && (
+          <div className="mt-4 text-center">
+            <a
+              href={`https://solscan.io/account/${walletAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-4 py-2 bg-green-400/10 border border-green-400/30 rounded text-green-400 font-mono text-sm hover:bg-green-400/20 transition-colors"
+            >
+              View on Solscan →
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
