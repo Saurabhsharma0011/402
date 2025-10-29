@@ -442,6 +442,23 @@ export default function Desktop() {
 
           {/* Right - System Icons */}
           <div className="flex items-center gap-3 text-white/90 text-xs">
+            {/* Social Media Links */}
+            <button 
+              onClick={() => window.open('https://t.me/x402os', '_blank')}
+              className="hover:bg-blue-400/20 bg-blue-400/10 px-3 py-1 rounded transition-colors font-mono border border-blue-400/30 hover:border-blue-400/50"
+              title="Join our Telegram"
+            >
+              ✈️ Telegram
+            </button>
+            
+            <button 
+              onClick={() => window.open('https://x.com/x402os', '_blank')}
+              className="hover:bg-sky-400/20 bg-sky-400/10 px-3 py-1 rounded transition-colors font-mono border border-sky-400/30 hover:border-sky-400/50"
+              title="Follow us on Twitter/X"
+            >
+              🐦 Twitter
+            </button>
+
             {/* Faucet Button */}
             <button 
               onClick={handleFaucetClick}
