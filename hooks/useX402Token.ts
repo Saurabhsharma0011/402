@@ -179,12 +179,7 @@ export function useX402Token() {
         x402: Math.max(0, prev.x402 - amount)
       }));
 
-      // Call API to log the deduction
-      await fetch('/api/tokens/deduct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress, amount })
-      });
+      // Removed fake API call - focusing on mainnet transactions
 
       return true;
     } catch (err: any) {

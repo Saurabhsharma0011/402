@@ -2,17 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
+import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { getConnection, getWalletBalance, getTokenBalance } from '@/utils/solana';
 
 export default function XBridgeApp() {
   const { user } = usePrivy();
+  const { wallets } = useWallets();
   
-  // Get Solana wallet address from user
+  // Get Solana wallet from Privy
+  const solanaWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
   const walletAddress = user?.wallet?.address || null;
   const wallet = walletAddress ? { address: walletAddress } : null;
 
-  const [fromChain, setFromChain] = useState('Solana');
-  const [toChain, setToChain] = useState('Ethereum');
+  const [fromChain, setFromChain] = useState('SOL');
+  const [toChain, setToChain] = useState('ETH');
   const [token, setToken] = useState('USDC');
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -35,21 +39,27 @@ export default function XBridgeApp() {
   };
 
   const chains = [
-    { name: 'Solana', icon: '◎', color: 'purple' },
-    { name: 'Ethereum', icon: 'Ξ', color: 'blue' },
-    { name: 'BSC', icon: '🔶', color: 'yellow' },
-    { name: 'Polygon', icon: '🟣', color: 'purple' },
-    { name: 'Avalanche', icon: '🔺', color: 'red' },
-    { name: 'Arbitrum', icon: '🔵', color: 'blue' },
+    { id: 'SOL', name: 'Solana', icon: '◎', color: 'purple' },
+    { id: 'ETH', name: 'Ethereum', icon: 'Ξ', color: 'blue' },
+    { id: 'BSC', name: 'BNB Chain', icon: '🔶', color: 'yellow' },
+    { id: 'POL', name: 'Polygon', icon: '🟣', color: 'purple' },
+    { id: 'AVA', name: 'Avalanche', icon: '🔺', color: 'red' },
+    { id: 'ARB', name: 'Arbitrum', icon: '🔵', color: 'blue' },
+    { id: 'OPT', name: 'Optimism', icon: '🔴', color: 'red' },
+    { id: 'BAS', name: 'Base', icon: '🔷', color: 'blue' },
+    { id: 'CEL', name: 'Celo', icon: '💚', color: 'green' },
+    { id: 'SNC', name: 'Sonic', icon: '💙', color: 'blue' },
+    { id: 'SUI', name: 'Sui', icon: '🌊', color: 'blue' },
+    { id: 'STLR', name: 'Stellar', icon: '⭐', color: 'purple' },
   ];
 
   const supportedTokens = ['USDC', 'USDT', 'ETH', 'SOL', 'WBTC'];
 
   const popularRoutes = [
-    { from: 'Solana', to: 'Ethereum', label: 'SOL → ETH' },
-    { from: 'Ethereum', to: 'Solana', label: 'ETH → SOL' },
-    { from: 'Solana', to: 'BSC', label: 'SOL → BSC' },
-    { from: 'BSC', to: 'Solana', label: 'BSC → SOL' },
+    { from: 'SOL', to: 'ETH', label: 'SOL → ETH' },
+    { from: 'ETH', to: 'SOL', label: 'ETH → SOL' },
+    { from: 'SOL', to: 'BSC', label: 'SOL → BSC' },
+    { from: 'BSC', to: 'SOL', label: 'BSC → SOL' },
   ];
 
   // Fetch wallet balances
@@ -88,29 +98,33 @@ export default function XBridgeApp() {
     if (!amount || parseFloat(amount) <= 0) return;
     
     // Check if user has enough balance (only for Solana as source chain)
-    if (fromChain === 'Solana' && parseFloat(amount) > tokenBalance) {
+    if (fromChain === 'SOL' && parseFloat(amount) > tokenBalance) {
       alert(`❌ Insufficient ${token} balance!\n\nYou need: ${amount} ${token}\nYou have: ${tokenBalance.toFixed(6)} ${token}`);
       return;
     }
     
     setIsLoading(true);
     try {
-      // For now, using estimated quotes since AllBridge/Wormhole require complex setup
-      // In production, you'd integrate with Wormhole SDK or AllBridge API
-      const estimatedAmount = (parseFloat(amount) * 0.998).toFixed(6); // 0.2% bridge fee
-      const estimatedTime = fromChain === 'Solana' || toChain === 'Solana' ? '2-5 min' : '10-15 min';
+      // Call Allbridge quote API
+      const tokenMint = tokenMints[token] || tokenMints['USDC'];
+      const response = await fetch(
+        `/api/allbridge/quote?sourceChainId=${fromChain}&destinationChainId=${toChain}&tokenAddress=${tokenMint}&amount=${amount}`
+      );
       
-      setQuoteData({
-        inputAmount: amount,
-        outputAmount: estimatedAmount,
-        bridgeFee: (parseFloat(amount) * 0.002).toFixed(6),
-        networkFee: fromChain === 'Ethereum' ? '~$15' : '~$0.01',
-        estimatedTime,
-        protocol: fromChain === 'Solana' || toChain === 'Solana' ? 'Wormhole' : 'AllBridge',
-      });
-    } catch (error) {
+      if (!response.ok) {
+        throw new Error('Failed to get bridge quote from Allbridge');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get quote');
+      }
+      
+      setQuoteData(data.quote);
+    } catch (error: any) {
       console.error('Quote error:', error);
-      alert('Failed to get bridge quote. Please try again.');
+      alert(`Failed to get bridge quote: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -123,48 +137,58 @@ export default function XBridgeApp() {
     }
 
     // Validate recipient address format
-    if (toChain === 'Solana' && recipient.length !== 44) {
+    if (toChain === 'SOL' && recipient.length !== 44) {
       alert('Invalid Solana address format. Must be 44 characters.');
       return;
     }
-    if (toChain === 'Ethereum' && !recipient.startsWith('0x')) {
-      alert('Invalid Ethereum address format. Must start with 0x.');
+    if (['ETH', 'BSC', 'POL', 'ARB', 'AVA', 'OPT', 'BAS', 'CEL'].includes(toChain) && !recipient.startsWith('0x')) {
+      alert('Invalid EVM address format. Must start with 0x.');
       return;
     }
 
     setIsBridging(true);
     try {
-      // Note: Full Wormhole/AllBridge integration requires:
-      // 1. Wormhole SDK for attestation and transfer
-      // 2. Relayer setup for automatic redemption
-      // 3. Token approvals and wrapping
-      // This is a simplified flow showing the pattern
+      // Call Allbridge bridge API
+      const tokenMint = tokenMints[token] || tokenMints['USDC'];
+      const response = await fetch('/api/allbridge/bridge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceChainId: fromChain,
+          destinationChainId: toChain,
+          tokenAddress: tokenMint,
+          amount,
+          recipientAddress: recipient,
+          senderAddress: wallet.address
+        })
+      });
 
-      if (fromChain === 'Solana') {
-        // For Solana → Other chains via Wormhole
-        alert(
-          `⚠️ Bridge Integration In Progress\n\n` +
-          `To complete Wormhole integration:\n` +
-          `1. Install @certusone/wormhole-sdk\n` +
-          `2. Implement token attestation\n` +
-          `3. Create transfer with payload\n` +
-          `4. Set up relayer for redemption\n\n` +
-          `Your wallet (${wallet.address.slice(0, 8)}...) will be the fee payer.\n\n` +
-          `Amount: ${amount} ${token}\n` +
-          `From: ${fromChain}\n` +
-          `To: ${toChain}\n` +
-          `Recipient: ${recipient.slice(0, 12)}...`
-        );
-      } else {
-        alert('Bridge only supports transfers FROM Solana currently. Please switch chains.');
+      if (!response.ok) {
+        throw new Error('Failed to create bridge transaction');
       }
 
-      // In production, you would:
-      // const connection = getConnection();
-      // const transaction = await createWormholeTransferTx(...);
-      // const { signedTransaction } = await wallet.signTransaction(transaction);
-      // const signature = await connection.sendRawTransaction(signedTransaction);
-      // setTxSignature(signature);
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Bridge transaction failed');
+      }
+
+      // Show success message
+      alert(
+        `✅ Bridge Transaction Initiated!\n\n` +
+        `Bridge ID: ${data.transaction.bridgeId}\n` +
+        `From: ${fromChain}\n` +
+        `To: ${toChain}\n` +
+        `Amount: ${amount} ${token}\n` +
+        `Recipient: ${recipient.slice(0, 12)}...\n\n` +
+        `Status: ${data.transaction.status}\n` +
+        `${data.message}`
+      );
+
+      setTxSignature(data.transaction.bridgeId);
+      
+      // Refresh balances after bridge
+      await fetchBalances();
       
     } catch (error: any) {
       console.error('Bridge error:', error);
@@ -187,7 +211,7 @@ export default function XBridgeApp() {
         {/* Header */}
         <div className="text-center">
           <h2 className="text-3xl font-mono font-bold text-green-400 mb-2">x402bridge</h2>
-          <p className="text-green-400/60 text-sm">Powered by Wormhole & AllBridge • Secure cross-chain transfers</p>
+          <p className="text-green-400/60 text-sm">Powered by Allbridge Core • Secure cross-chain transfers</p>
         </div>
 
         {/* Wallet Balance Display */}
@@ -275,7 +299,7 @@ export default function XBridgeApp() {
                          font-mono text-lg focus:outline-none focus:border-green-400"
               >
                 {chains.map((chain) => (
-                  <option key={chain.name} value={chain.name}>
+                  <option key={chain.id} value={chain.id}>
                     {chain.icon} {chain.name}
                   </option>
                 ))}
@@ -308,7 +332,7 @@ export default function XBridgeApp() {
                          font-mono text-lg focus:outline-none focus:border-purple-400"
               >
                 {chains.map((chain) => (
-                  <option key={chain.name} value={chain.name}>
+                  <option key={chain.id} value={chain.id}>
                     {chain.icon} {chain.name}
                   </option>
                 ))}
@@ -417,7 +441,7 @@ export default function XBridgeApp() {
                 <span className="text-green-400">{quoteData.outputAmount} {token} ({toChain})</span>
               </div>
               <div className="flex justify-between text-sm font-mono">
-                <span className="text-green-400/60">Bridge Fee (0.2%):</span>
+                <span className="text-green-400/60">Bridge Fee (0.3%):</span>
                 <span className="text-green-400">{quoteData.bridgeFee} {token}</span>
               </div>
               <div className="flex justify-between text-sm font-mono">
@@ -426,7 +450,7 @@ export default function XBridgeApp() {
               </div>
               <div className="flex justify-between text-sm font-mono">
                 <span className="text-green-400/60">x402bridge Fee:</span>
-                <span className="text-green-400">0.005 USDC</span>
+                <span className="text-green-400">{quoteData.platformFee} {token}</span>
               </div>
               <div className="flex justify-between text-sm font-mono">
                 <span className="text-green-400/60">Estimated Time:</span>
@@ -484,11 +508,11 @@ export default function XBridgeApp() {
 
         {/* Supported Chains Info */}
         <div className="bg-green-400/5 border border-green-400/30 rounded-lg p-4">
-          <div className="text-green-400 font-mono text-sm font-bold mb-3">Supported Chains</div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="text-green-400 font-mono text-sm font-bold mb-3">Supported Chains (Allbridge Core)</div>
+          <div className="grid grid-cols-4 gap-3">
             {chains.map((chain) => (
               <div
-                key={chain.name}
+                key={chain.id}
                 className="bg-black border border-green-400/20 rounded p-2 text-center"
               >
                 <div className="text-2xl mb-1">{chain.icon}</div>
@@ -500,8 +524,8 @@ export default function XBridgeApp() {
 
         {/* Info */}
         <div className="text-center text-green-400/60 text-xs font-mono space-y-1">
-          <p>🔒 Powered by Wormhole & AllBridge • Secure cross-chain messaging</p>
-          <p>💰 Fees paid by your connected wallet via Helius RPC</p>
+          <p>🔒 Powered by Allbridge Core • Secure cross-chain messaging</p>
+          <p>💰 Fees paid by your connected wallet via Allbridge protocol</p>
           <p>⚠️ Always verify recipient address before bridging</p>
         </div>
       </div>

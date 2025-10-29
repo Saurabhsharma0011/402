@@ -16,8 +16,7 @@ import XScanApp from '../apps/XScanApp';
 import XFeedApp from '../apps/XFeedApp';
 import XChartApp from '../apps/XChartApp';
 import XFaucetApp from '../apps/XFaucetApp';
-import { useX402Token } from '@/hooks/useX402Token';
-import { X402_CONFIG } from '@/utils/x402Token';
+// Removed fake token system - focusing on mainnet transactions
 
 // Desktop App Icons
 const desktopApps = [
@@ -39,50 +38,24 @@ const desktopApps = [
 export default function Desktop() {
   const router = useRouter();
   const { user, logout } = usePrivy();
-  const { balance, hasEnoughTokens, deductTokens, fetchBalance } = useX402Token();
   const [showStartMenu, setShowStartMenu] = useState(false);
   const [openApp, setOpenApp] = useState<string | null>(null);
-  const [deductingTokens, setDeductingTokens] = useState(false);
-  const [showDeductNotification, setShowDeductNotification] = useState(false);
+  const [showTradeMenu, setShowTradeMenu] = useState(false);
+  const [showPumpMenu, setShowPumpMenu] = useState(false);
+  const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showGoMenu, setShowGoMenu] = useState(false);
+  const [showWindowMenu, setShowWindowMenu] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const address = user?.wallet?.address;
+  const isConnected = !!address;
 
   const handleAppClick = async (appId: string) => {
-    // Check if user has enough tokens (4,000 per app)
-    if (!hasEnoughTokens(X402_CONFIG.APP_FEE)) {
-      const confirmed = confirm(
-        `⚠️ You need ${X402_CONFIG.APP_FEE.toLocaleString()} x402 tokens to use this application!\n\n` +
-        `Your balance: ${balance.x402.toLocaleString()} tokens\n\n` +
-        `Click OK to go to the faucet and claim tokens.`
-      );
-      if (confirmed) {
-        router.push('/faucet');
-      }
-      return;
-    }
-
-    // Deduct tokens for app usage
-    setDeductingTokens(true);
-    try {
-      const success = await deductTokens(X402_CONFIG.APP_FEE);
-      
-      if (!success) {
-        throw new Error('Failed to deduct tokens');
-      }
-
-      // Open the app after successful deduction
-      setOpenApp(appId);
-      setShowStartMenu(false);
-      
-      // Show notification
-      setShowDeductNotification(true);
-      setTimeout(() => setShowDeductNotification(false), 3000);
-      
-      console.log(`App ${appId} opened - ${X402_CONFIG.APP_FEE} tokens deducted`);
-    } catch (error) {
-      console.error('Error deducting tokens:', error);
-      alert('Failed to process token payment. Please try again.');
-    } finally {
-      setDeductingTokens(false);
-    }
+    // Open the app directly - no fake token deduction for mainnet focus
+    setOpenApp(appId);
+    setShowStartMenu(false);
+    
+    console.log(`App ${appId} opened - ready for mainnet transactions`);
   };
 
   const handleFaucetClick = () => {
@@ -122,6 +95,91 @@ export default function Desktop() {
         return <XChartApp />;
       case 'x402faucet':
         return <XFaucetApp />;
+      case 'x402fetch':
+        return (
+          <div className="h-full flex flex-col overflow-auto p-6 bg-black">
+            <div className="max-w-4xl mx-auto w-full space-y-6">
+              <div className="text-center mb-8">
+                <h2 className="text-4xl font-mono font-bold text-green-400 mb-2">x402fetch</h2>
+                <p className="text-green-400/60 text-sm">Mini Search Engine • Search anything</p>
+              </div>
+              
+              <div className="bg-green-400/10 border-2 border-green-400/50 rounded-lg p-8">
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && searchQuery.trim()) {
+                        window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank');
+                      }
+                    }}
+                    placeholder="Search the web..."
+                    className="flex-1 bg-black border-2 border-green-400/30 rounded px-4 py-3 text-green-400 
+                             font-mono text-lg focus:border-green-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      if (searchQuery.trim()) {
+                        window.open(`https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`, '_blank');
+                      }
+                    }}
+                    className="bg-green-400 hover:bg-green-500 text-black font-mono px-6 py-3 rounded 
+                             font-bold transition-all"
+                  >
+                    🔍 Search
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3 mt-6">
+                  <button
+                    onClick={() => window.open('https://www.google.com', '_blank')}
+                    className="bg-black border border-green-400/30 rounded p-4 hover:border-green-400 
+                             transition-all text-green-400 font-mono"
+                  >
+                    🌐 Google
+                  </button>
+                  <button
+                    onClick={() => window.open('https://solscan.io', '_blank')}
+                    className="bg-black border border-green-400/30 rounded p-4 hover:border-green-400 
+                             transition-all text-green-400 font-mono"
+                  >
+                    ◎ Solscan
+                  </button>
+                  <button
+                    onClick={() => window.open('https://birdeye.so', '_blank')}
+                    className="bg-black border border-green-400/30 rounded p-4 hover:border-green-400 
+                             transition-all text-green-400 font-mono"
+                  >
+                    🐦 Birdeye
+                  </button>
+                  <button
+                    onClick={() => window.open('https://dexscreener.com/solana', '_blank')}
+                    className="bg-black border border-green-400/30 rounded p-4 hover:border-green-400 
+                             transition-all text-green-400 font-mono"
+                  >
+                    📊 DexScreener
+                  </button>
+                  <button
+                    onClick={() => window.open('https://twitter.com/search', '_blank')}
+                    className="bg-black border border-green-400/30 rounded p-4 hover:border-green-400 
+                             transition-all text-green-400 font-mono"
+                  >
+                    🐦 Twitter
+                  </button>
+                  <button
+                    onClick={() => window.open('https://github.com', '_blank')}
+                    className="bg-black border border-green-400/30 rounded p-4 hover:border-green-400 
+                             transition-all text-green-400 font-mono"
+                  >
+                    💻 GitHub
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return (
           <div className="h-full flex items-center justify-center p-8">
@@ -146,17 +204,6 @@ export default function Desktop() {
 
   return (
     <div className="fixed inset-0 overflow-hidden">
-      {/* Token Deduction Notification */}
-      {showDeductNotification && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
-          <div className="bg-green-400/90 backdrop-blur-sm border-2 border-green-500 rounded-lg px-6 py-3 shadow-lg">
-            <p className="text-black font-bold text-sm">
-              ✅ {X402_CONFIG.APP_FEE.toLocaleString()} x402 tokens deducted
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Wallpaper Background */}
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -171,39 +218,230 @@ export default function Desktop() {
       {/* macOS Menu Bar - Top */}
       <div className="absolute top-0 left-0 right-0 h-7 bg-black/30 backdrop-blur-2xl border-b border-white/10 z-50">
         <div className="h-full px-4 flex items-center justify-between">
-          {/* Left - Apple Menu & App Name */}
+          {/* Left - Logo & App Menu */}
           <div className="flex items-center gap-4 text-white/90 text-xs font-medium">
-            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
-              🍎
+            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors text-lg">
+              🔷
             </button>
             <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors font-semibold">
               x402os
             </button>
-            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
-              File
-            </button>
-            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
-              Edit
-            </button>
-            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
-              View
-            </button>
-            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
-              Go
-            </button>
-            <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
-              Window
-            </button>
+            
+            {/* Trade Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowTradeMenu(!showTradeMenu)}
+                className="hover:bg-white/10 px-2 py-1 rounded transition-colors"
+              >
+                Trade
+              </button>
+              {showTradeMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-black/95 backdrop-blur-xl border border-green-400/30 rounded-lg shadow-xl min-w-[200px] z-50">
+                  <a 
+                    href="https://pump.fun" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🚀 Pump.fun
+                  </a>
+                  <a 
+                    href="https://raydium.io" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    ⚡ Raydium
+                  </a>
+                  <a 
+                    href="https://jup.ag" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🪐 Jupiter
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Pump Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowPumpMenu(!showPumpMenu)}
+                className="hover:bg-white/10 px-2 py-1 rounded transition-colors"
+              >
+                Pump
+              </button>
+              {showPumpMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-black/95 backdrop-blur-xl border border-green-400/30 rounded-lg shadow-xl min-w-[200px] z-50">
+                  <button 
+                    onClick={() => window.open('https://pump.fun', '_blank')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🔥 Create Token
+                  </button>
+                  <button 
+                    onClick={() => window.open('https://pump.fun/board', '_blank')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    📊 Leaderboard
+                  </button>
+                  <button 
+                    onClick={() => window.open('https://pump.fun', '_blank')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    💎 Trending
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* View Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowViewMenu(!showViewMenu)}
+                className="hover:bg-white/10 px-2 py-1 rounded transition-colors"
+              >
+                View
+              </button>
+              {showViewMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-black/95 backdrop-blur-xl border border-green-400/30 rounded-lg shadow-xl min-w-[200px] z-50">
+                  <button 
+                    onClick={() => setOpenApp('x402vault')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🔐 My Vault
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402scan')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🔍 Token Scanner
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402chart')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    📊 Live Charts
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Go Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowGoMenu(!showGoMenu)}
+                className="hover:bg-white/10 px-2 py-1 rounded transition-colors"
+              >
+                Go
+              </button>
+              {showGoMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-black/95 backdrop-blur-xl border border-green-400/30 rounded-lg shadow-xl min-w-[200px] z-50">
+                  <button 
+                    onClick={() => setOpenApp('x402swap')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🔄 Swap Tokens
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402bridge')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🌉 Bridge
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402pay')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    💳 Send Payment
+                  </button>
+                  <button 
+                    onClick={() => router.push('/faucet')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🪙 Faucet
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Window Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowWindowMenu(!showWindowMenu)}
+                className="hover:bg-white/10 px-2 py-1 rounded transition-colors"
+              >
+                Window
+              </button>
+              {showWindowMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-black/95 backdrop-blur-xl border border-green-400/30 rounded-lg shadow-xl min-w-[200px] z-50">
+                  <button 
+                    onClick={() => setOpenApp(null)}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    ❌ Close All
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402agent')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🔮 AI Agent
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402robot')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    🤖 Trading Bot
+                  </button>
+                  <button 
+                    onClick={() => setOpenApp('x402feed')}
+                    className="block w-full text-left px-4 py-2 text-green-400 hover:bg-green-400/20 transition-colors font-mono text-xs"
+                  >
+                    📰 News Feed
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Center - Contract Address */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+            <div className="group relative bg-green-400/10 border border-green-400/30 rounded px-3 py-1 flex items-center gap-2 hover:bg-green-400/20 transition-all">
+              <span className="text-green-400 font-mono text-xs font-bold">Contract:</span>
+              <span className="text-green-400/80 font-mono text-xs">CA WILL LIVE SOON</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('CA WILL LIVE SOON');
+                  alert('✅ Contract address copied to clipboard!');
+                }}
+                className="text-green-400 hover:text-green-300 transition-colors"
+                title="Copy contract address"
+              >
+                📋
+              </button>
+              
+              {/* Hover Tooltip */}
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                <div className="bg-black/95 backdrop-blur-xl border-2 border-green-400/50 rounded-lg p-3 shadow-2xl min-w-[250px]">
+                  <div className="text-green-400 font-mono text-xs font-bold mb-2">x402 Token</div>
+                  <div className="space-y-1 text-green-400/80 font-mono text-xs">
+                    <div>📍 Network: Solana Mainnet</div>
+                    <div>🪙 Symbol: x402</div>
+                    <div>💰 Faucet: 100K tokens</div>
+                    <div>⏱️ Cooldown: 30 min</div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-green-400/30">
+                    <div className="text-green-400/60 text-xs">Contract launching soon!</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right - System Icons */}
           <div className="flex items-center gap-3 text-white/90 text-xs">
-            {/* x402 Balance Display */}
-            <div className="flex items-center gap-2 bg-green-400/20 border border-green-400/50 px-3 py-1 rounded">
-              <span className="text-green-400 font-mono font-bold">💰 {balance.x402.toLocaleString()}</span>
-              <span className="text-green-400/60 font-mono text-[10px]">x402</span>
-            </div>
-            
             {/* Faucet Button */}
             <button 
               onClick={handleFaucetClick}
@@ -215,7 +453,10 @@ export default function Desktop() {
 
             <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-              {user?.wallet?.address?.slice(0, 4)}...{user?.wallet?.address?.slice(-4) || 'Guest'}
+              {isConnected && address ? 
+                `${address.slice(0, 4)}...${address.slice(-4)}` : 
+                'Guest'
+              }
             </button>
             <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
               🔋 100%
@@ -248,15 +489,14 @@ export default function Desktop() {
             <button
               key={app.id}
               onClick={() => handleAppClick(app.id)}
-              disabled={deductingTokens}
               className="group flex flex-col items-center gap-1 p-2 rounded-lg
                        hover:bg-white/10 backdrop-blur-sm transition-all duration-200
-                       active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                       active:scale-95"
             >
               {/* Icon with glow */}
               <div className="text-5xl filter drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]
                            group-hover:scale-110 transition-transform">
-                {deductingTokens ? '⏳' : app.icon}
+                {app.icon}
               </div>
               
               {/* App Name */}
@@ -277,7 +517,6 @@ export default function Desktop() {
               <button
                 key={app.id}
                 onClick={() => handleAppClick(app.id)}
-                disabled={deductingTokens}
                 className="group relative flex flex-col items-center transition-all duration-200
                          hover:-translate-y-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 title={app.name}
@@ -285,7 +524,7 @@ export default function Desktop() {
                 {/* Dock Icon */}
                 <div className={`text-5xl transition-all duration-200 group-hover:text-6xl
                              ${openApp === app.id ? 'scale-110' : 'scale-100'}`}>
-                  {deductingTokens ? '⏳' : app.icon}
+                  {app.icon}
                 </div>
                 
                 {/* Active Indicator */}

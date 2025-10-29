@@ -2,12 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { useWallets } from '@privy-io/react-auth';
+import { Connection, VersionedTransaction } from '@solana/web3.js';
 import { getConnection, getWalletBalance, getTokenBalance } from '@/utils/solana';
 
 export default function XSwapApp() {
   const { user } = usePrivy();
+  const { wallets } = useWallets();
   
-  // Get Solana wallet address from user
+  // Get Solana wallet from Privy
+  const solanaWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
   const walletAddress = user?.wallet?.address || null;
   const wallet = walletAddress ? { address: walletAddress } : null;
 
@@ -103,42 +107,48 @@ export default function XSwapApp() {
       const decimals = fromToken === 'SOL' ? 9 : 6; // SOL has 9 decimals, most tokens have 6
       const amountInLamports = Math.floor(parseFloat(amount) * Math.pow(10, decimals));
 
-      // Call Jupiter Quote API with proper CORS handling
+      // Call our API route instead of Jupiter directly
       const quoteResponse = await fetch(
-        `https://quote-api.jup.ag/v6/quote?inputMint=${fromMint}&outputMint=${toMint}&amount=${amountInLamports}&slippageBps=${Math.floor(parseFloat(slippage) * 100)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        }
+        `/api/jupiter/quote?inputMint=${fromMint}&outputMint=${toMint}&amount=${amountInLamports}&slippageBps=${Math.floor(parseFloat(slippage) * 100)}`
       );
 
       if (!quoteResponse.ok) {
-        const errorText = await quoteResponse.text();
-        throw new Error(`Jupiter API error: ${errorText || quoteResponse.statusText}`);
+        const errorData = await quoteResponse.json();
+        throw new Error(errorData.error || 'Failed to get quote');
       }
 
       const quote = await quoteResponse.json();
       
       // Convert output amount back to human-readable
       const toDecimals = toToken === 'SOL' ? 9 : 6;
-      const outputAmount = (quote.outAmount / Math.pow(10, toDecimals)).toFixed(6);
-      const inputAmount = (quote.inAmount / Math.pow(10, decimals)).toFixed(6);
-      const minimumReceived = (quote.otherAmountThreshold / Math.pow(10, toDecimals)).toFixed(6);
+      const outputAmount = (parseInt(quote.outAmount) / Math.pow(10, toDecimals)).toFixed(6);
+      const inputAmount = (parseInt(quote.inAmount) / Math.pow(10, decimals)).toFixed(6);
+      const minimumReceived = (parseInt(quote.otherAmountThreshold) / Math.pow(10, toDecimals)).toFixed(6);
 
       setQuoteData({
         inputAmount: inputAmount,
         outputAmount: outputAmount,
-        priceImpact: `${(quote.priceImpactPct || 0).toFixed(2)}%`,
+        priceImpact: `${(parseFloat(quote.priceImpactPct) || 0).toFixed(2)}%`,
         minimumReceived: minimumReceived,
         fee: '0.0025 USDC',
         route: quote.routePlan ? quote.routePlan.map((r: any) => r.swapInfo?.label || 'Unknown').slice(0, 3) : [fromToken, toToken],
         quoteResponse: quote // Store full quote for swap
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Quote error:', error);
-      alert('Failed to get quote. Please try again.');
+      let errorMessage = 'Failed to get quote. Please try again.';
+      
+      if (error.message) {
+        if (error.message.includes('Jupiter API error')) {
+          errorMessage = 'Jupiter API is temporarily unavailable. Please try again in a moment.';
+        } else if (error.message.includes('Invalid token selection')) {
+          errorMessage = 'Please select valid tokens for swapping.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      alert(`❌ ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -152,42 +162,43 @@ export default function XSwapApp() {
 
     setIsSwapping(true);
     try {
-      // Get swap transaction from Jupiter
-      const swapResponse = await fetch('https://quote-api.jup.ag/v6/swap', {
+      // Get swap transaction from Jupiter v1 API
+      const swapResponse = await fetch('https://api.jup.ag/swap/v1/swap', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          quoteResponse: quoteData.quoteResponse,
-          userPublicKey: wallet.address,
-          wrapAndUnwrapSol: true,
-          dynamicComputeUnitLimit: true,
-          prioritizationFeeLamports: 'auto'
+          route: quoteData.quoteResponse,
+          userPublicKey: walletAddress,
+          wrapUnwrapSOL: true,
+          feeAccount: null
         })
       });
 
       if (!swapResponse.ok) {
-        throw new Error('Failed to get swap transaction');
+        const errorData = await swapResponse.json();
+        throw new Error(errorData.error || 'Failed to get swap transaction from Jupiter');
       }
 
       const { swapTransaction } = await swapResponse.json();
       
+      // Check if wallet is available
+      if (!solanaWallet) {
+        throw new Error('Wallet not connected. Please reconnect your wallet.');
+      }
+
       // Deserialize the transaction
       const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-      const transaction = require('@solana/web3.js').VersionedTransaction.deserialize(swapTransactionBuf);
+      const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
-      // Note: Transaction signing requires embedded wallet or external wallet provider
-      // For now, simulate the swap transaction (in production, use Privy's embedded wallet API)
-      throw new Error('Transaction signing temporarily disabled. Connect wallet provider.');
+      // Sign transaction with user's Privy wallet
+      // @ts-ignore - Privy wallet provider types
+      const signedTransaction = await solanaWallet.signTransaction(transaction);
 
-      /* TODO: Implement proper Privy wallet signing
-      // Sign transaction with user's wallet
-      const signedTxBytes = await wallet.signTransaction(transaction);
-
-      // Send transaction via Helius RPC
+      // Send transaction to Solana network
       const connection = getConnection();
-      const signature = await connection.sendRawTransaction(signedTxBytes, {
+      const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
         skipPreflight: false,
         maxRetries: 3
       });
@@ -196,12 +207,14 @@ export default function XSwapApp() {
       const confirmation = await connection.confirmTransaction(signature, 'confirmed');
 
       if (confirmation.value.err) {
-        throw new Error('Transaction failed');
+        throw new Error('Transaction failed on blockchain');
       }
 
       setTxSignature(signature);
-      alert(`✅ Swap successful!\n\nTransaction: ${signature}\n\nView on Solscan: https://solscan.io/tx/${signature}`);
-      */
+      
+      // Show success message
+      alert(`✅ Swap Successful!\n\nTransaction: ${signature.slice(0, 8)}...${signature.slice(-8)}\n\n🔗 View on Solscan`);
+      
       // Refresh balances after swap
       await fetchBalances();
       
@@ -231,6 +244,16 @@ export default function XSwapApp() {
           <h2 className="text-3xl font-mono font-bold text-green-400 mb-2">x402swap</h2>
           <p className="text-green-400/60 text-sm">Powered by Jupiter Aggregator • Best rates guaranteed</p>
         </div>
+
+        {/* Wallet Connection Status */}
+        {!wallet && (
+          <div className="bg-red-400/10 border-2 border-red-400/50 rounded-lg p-4 text-center">
+            <div className="text-red-400 font-mono text-sm font-bold mb-2">⚠️ Wallet Not Connected</div>
+            <div className="text-red-400/60 text-xs font-mono mb-3">
+              Please connect your wallet to use the swap functionality
+            </div>
+          </div>
+        )}
 
         {/* Wallet Balance Display */}
         {wallet && (
@@ -407,12 +430,12 @@ export default function XSwapApp() {
         {!quoteData && (
           <button
             onClick={handleGetQuote}
-            disabled={!amount || parseFloat(amount) <= 0 || isLoading}
+            disabled={!amount || parseFloat(amount) <= 0 || isLoading || !wallet}
             className="w-full bg-green-400/20 hover:bg-green-400/30 border-2 border-green-400/50 
                      text-green-400 font-mono py-4 px-6 rounded font-bold text-lg transition-all 
                      disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? '⏳ Getting Best Rate...' : '📊 Get Quote'}
+            {!wallet ? '🔗 Connect Wallet First' : isLoading ? '⏳ Getting Best Rate...' : '📊 Get Quote'}
           </button>
         )}
 
