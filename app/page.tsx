@@ -7,7 +7,7 @@ import LoginTerminal from '@/components/os/LoginTerminal';
 import Desktop from '@/components/os/Desktop';
 
 export default function Home() {
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, logout } = usePrivy();
   const [bootComplete, setBootComplete] = useState(false);
   const [showBoot, setShowBoot] = useState(true);
 
@@ -18,7 +18,52 @@ export default function Home() {
       setShowBoot(false);
       setBootComplete(true);
     }
-  }, []);
+
+    // Logout user when they close the tab or navigate away
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Clear session and logout
+      sessionStorage.removeItem('x402os_booted');
+      localStorage.removeItem('privy:token');
+      localStorage.removeItem('privy:refresh_token');
+      
+      // Logout from Privy
+      if (authenticated) {
+        logout();
+      }
+    };
+
+    // Handle page visibility change (when tab is hidden)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // User switched tabs or minimized browser
+        sessionStorage.setItem('x402os_tab_hidden', Date.now().toString());
+      } else {
+        // User came back to the tab
+        const hiddenTime = sessionStorage.getItem('x402os_tab_hidden');
+        if (hiddenTime) {
+          const timeDiff = Date.now() - parseInt(hiddenTime);
+          // If user was away for more than 30 seconds, logout
+          if (timeDiff > 30000) {
+            sessionStorage.clear();
+            localStorage.removeItem('privy:token');
+            localStorage.removeItem('privy:refresh_token');
+            if (authenticated) {
+              logout();
+            }
+            window.location.reload();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [authenticated, logout]);
 
   const handleBootComplete = () => {
     setBootComplete(true);

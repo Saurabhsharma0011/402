@@ -29,7 +29,7 @@ export default function XPayApp() {
         <div className="flex items-center gap-4">
           <div className="relative w-12 h-12 flex-shrink-0">
             <Image 
-              src="/solanapay-removebg-preview.png" 
+              src="/solanapay.png" 
               alt="x402pay logo" 
               width={48}
               height={48}

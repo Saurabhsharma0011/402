@@ -2,6 +2,7 @@
 
 import { usePrivy } from '@privy-io/react-auth';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Taskbar from './Taskbar';
 import StartMenu from './StartMenu';
 import Window from './Window';
@@ -13,6 +14,10 @@ import XBridgeApp from '../apps/XBridgeApp';
 import XRobotApp from '../apps/XRobotApp';
 import XScanApp from '../apps/XScanApp';
 import XFeedApp from '../apps/XFeedApp';
+import XChartApp from '../apps/XChartApp';
+import XFaucetApp from '../apps/XFaucetApp';
+import { useX402Token } from '@/hooks/useX402Token';
+import { X402_CONFIG } from '@/utils/x402Token';
 
 // Desktop App Icons
 const desktopApps = [
@@ -23,6 +28,7 @@ const desktopApps = [
   { id: 'x402scan', name: 'x402scan', icon: '🔍', desc: 'Token Scanner' },
   { id: 'x402chart', name: 'x402chart', icon: '📊', desc: 'Live Charts' },
   { id: 'x402feed', name: 'x402feed', icon: '📰', desc: 'News Feed' },
+  { id: 'x402faucet', name: 'x402faucet', icon: '🪙', desc: 'Claim Faucet' },
   { id: 'x402task', name: 'x402task', icon: '⚙️', desc: 'Automation' },
   { id: 'x402swap', name: 'x402swap', icon: '🔄', desc: 'Token Swap' },
   { id: 'x402bridge', name: 'x402bridge', icon: '🌉', desc: 'Cross-chain' },
@@ -31,14 +37,67 @@ const desktopApps = [
 ];
 
 export default function Desktop() {
-  const { user } = usePrivy();
+  const router = useRouter();
+  const { user, logout } = usePrivy();
+  const { balance, hasEnoughTokens, deductTokens, fetchBalance } = useX402Token();
   const [showStartMenu, setShowStartMenu] = useState(false);
   const [openApp, setOpenApp] = useState<string | null>(null);
+  const [deductingTokens, setDeductingTokens] = useState(false);
+  const [showDeductNotification, setShowDeductNotification] = useState(false);
 
-  const handleAppClick = (appId: string) => {
-    setOpenApp(appId);
-    setShowStartMenu(false);
-    console.log(`Opening app: ${appId}`);
+  const handleAppClick = async (appId: string) => {
+    // Check if user has enough tokens (4,000 per app)
+    if (!hasEnoughTokens(X402_CONFIG.APP_FEE)) {
+      const confirmed = confirm(
+        `⚠️ You need ${X402_CONFIG.APP_FEE.toLocaleString()} x402 tokens to use this application!\n\n` +
+        `Your balance: ${balance.x402.toLocaleString()} tokens\n\n` +
+        `Click OK to go to the faucet and claim tokens.`
+      );
+      if (confirmed) {
+        router.push('/faucet');
+      }
+      return;
+    }
+
+    // Deduct tokens for app usage
+    setDeductingTokens(true);
+    try {
+      const success = await deductTokens(X402_CONFIG.APP_FEE);
+      
+      if (!success) {
+        throw new Error('Failed to deduct tokens');
+      }
+
+      // Open the app after successful deduction
+      setOpenApp(appId);
+      setShowStartMenu(false);
+      
+      // Show notification
+      setShowDeductNotification(true);
+      setTimeout(() => setShowDeductNotification(false), 3000);
+      
+      console.log(`App ${appId} opened - ${X402_CONFIG.APP_FEE} tokens deducted`);
+    } catch (error) {
+      console.error('Error deducting tokens:', error);
+      alert('Failed to process token payment. Please try again.');
+    } finally {
+      setDeductingTokens(false);
+    }
+  };
+
+  const handleFaucetClick = () => {
+    router.push('/faucet');
+  };
+
+  const handleLogout = async () => {
+    const confirmed = confirm('Are you sure you want to logout? You will need to login again to access x402os.');
+    if (confirmed) {
+      sessionStorage.clear();
+      localStorage.removeItem('privy:token');
+      localStorage.removeItem('privy:refresh_token');
+      await logout();
+      window.location.reload();
+    }
   };
 
   const renderAppContent = () => {
@@ -59,6 +118,10 @@ export default function Desktop() {
         return <XScanApp />;
       case 'x402feed':
         return <XFeedApp />;
+      case 'x402chart':
+        return <XChartApp />;
+      case 'x402faucet':
+        return <XFaucetApp />;
       default:
         return (
           <div className="h-full flex items-center justify-center p-8">
@@ -83,6 +146,17 @@ export default function Desktop() {
 
   return (
     <div className="fixed inset-0 overflow-hidden">
+      {/* Token Deduction Notification */}
+      {showDeductNotification && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-green-400/90 backdrop-blur-sm border-2 border-green-500 rounded-lg px-6 py-3 shadow-lg">
+            <p className="text-black font-bold text-sm">
+              ✅ {X402_CONFIG.APP_FEE.toLocaleString()} x402 tokens deducted
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Wallpaper Background */}
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -124,6 +198,21 @@ export default function Desktop() {
 
           {/* Right - System Icons */}
           <div className="flex items-center gap-3 text-white/90 text-xs">
+            {/* x402 Balance Display */}
+            <div className="flex items-center gap-2 bg-green-400/20 border border-green-400/50 px-3 py-1 rounded">
+              <span className="text-green-400 font-mono font-bold">💰 {balance.x402.toLocaleString()}</span>
+              <span className="text-green-400/60 font-mono text-[10px]">x402</span>
+            </div>
+            
+            {/* Faucet Button */}
+            <button 
+              onClick={handleFaucetClick}
+              className="hover:bg-green-400/20 bg-green-400/10 px-3 py-1 rounded transition-colors font-mono border border-green-400/30 hover:border-green-400/50"
+              title="Claim x402 tokens"
+            >
+              🪙 Faucet
+            </button>
+
             <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
               {user?.wallet?.address?.slice(0, 4)}...{user?.wallet?.address?.slice(-4) || 'Guest'}
@@ -140,6 +229,13 @@ export default function Desktop() {
             <button className="hover:bg-white/10 px-2 py-1 rounded transition-colors">
               {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </button>
+            <button 
+              onClick={handleLogout}
+              className="hover:bg-red-500/20 bg-red-500/10 px-3 py-1 rounded transition-colors font-semibold border border-red-500/30"
+              title="Logout from x402os"
+            >
+              🚪 Logout
+            </button>
           </div>
         </div>
       </div>
@@ -152,14 +248,15 @@ export default function Desktop() {
             <button
               key={app.id}
               onClick={() => handleAppClick(app.id)}
+              disabled={deductingTokens}
               className="group flex flex-col items-center gap-1 p-2 rounded-lg
                        hover:bg-white/10 backdrop-blur-sm transition-all duration-200
-                       active:scale-95"
+                       active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {/* Icon with glow */}
               <div className="text-5xl filter drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]
                            group-hover:scale-110 transition-transform">
-                {app.icon}
+                {deductingTokens ? '⏳' : app.icon}
               </div>
               
               {/* App Name */}
@@ -180,14 +277,15 @@ export default function Desktop() {
               <button
                 key={app.id}
                 onClick={() => handleAppClick(app.id)}
+                disabled={deductingTokens}
                 className="group relative flex flex-col items-center transition-all duration-200
-                         hover:-translate-y-2 active:scale-95"
+                         hover:-translate-y-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 title={app.name}
               >
                 {/* Dock Icon */}
                 <div className={`text-5xl transition-all duration-200 group-hover:text-6xl
                              ${openApp === app.id ? 'scale-110' : 'scale-100'}`}>
-                  {app.icon}
+                  {deductingTokens ? '⏳' : app.icon}
                 </div>
                 
                 {/* Active Indicator */}

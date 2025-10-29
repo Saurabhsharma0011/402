@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 
 export default function XFeedApp() {
   const [selectedNews, setSelectedNews] = useState<number | null>(null);
@@ -9,19 +8,19 @@ export default function XFeedApp() {
 
   // News screenshots from public folder
   const newsItems = [
-    { id: 1, image: '/Screenshot 2025-10-29 at 9.02.33 AM.png', title: 'x402 News Update #1', date: 'Oct 29, 2025 - 9:02 AM' },
-    { id: 2, image: '/Screenshot 2025-10-29 at 9.03.06 AM.png', title: 'x402 News Update #2', date: 'Oct 29, 2025 - 9:03 AM' },
-    { id: 3, image: '/Screenshot 2025-10-29 at 9.03.29 AM.png', title: 'x402 News Update #3', date: 'Oct 29, 2025 - 9:03 AM' },
-    { id: 4, image: '/Screenshot 2025-10-29 at 9.03.45 AM.png', title: 'x402 News Update #4', date: 'Oct 29, 2025 - 9:03 AM' },
-    { id: 5, image: '/Screenshot 2025-10-29 at 9.03.54 AM.png', title: 'x402 News Update #5', date: 'Oct 29, 2025 - 9:03 AM' },
-    { id: 6, image: '/Screenshot 2025-10-29 at 9.04.08 AM.png', title: 'x402 News Update #6', date: 'Oct 29, 2025 - 9:04 AM' },
-    { id: 7, image: '/Screenshot 2025-10-29 at 9.06.12 AM.png', title: 'x402 News Update #7', date: 'Oct 29, 2025 - 9:06 AM' },
-    { id: 8, image: '/Screenshot 2025-10-29 at 9.06.24 AM.png', title: 'x402 News Update #8', date: 'Oct 29, 2025 - 9:06 AM' },
-    { id: 9, image: '/Screenshot 2025-10-29 at 9.06.35 AM.png', title: 'x402 News Update #9', date: 'Oct 29, 2025 - 9:06 AM' },
-    { id: 10, image: '/Screenshot 2025-10-29 at 9.06.50 AM.png', title: 'x402 News Update #10', date: 'Oct 29, 2025 - 9:06 AM' },
-    { id: 11, image: '/Screenshot 2025-10-29 at 9.06.59 AM.png', title: 'x402 News Update #11', date: 'Oct 29, 2025 - 9:06 AM' },
-    { id: 12, image: '/Screenshot 2025-10-29 at 9.07.05 AM.png', title: 'x402 News Update #12', date: 'Oct 29, 2025 - 9:07 AM' },
-    { id: 13, image: '/Screenshot 2025-10-29 at 9.07.11 AM.png', title: 'x402 News Update #13', date: 'Oct 29, 2025 - 9:07 AM' },
+    { id: 1, image: '/twitter1.png', title: 'x402 News Update #1', date: 'Oct 29, 2025 - 9:02 AM' },
+    { id: 2, image: '/twitter2.png', title: 'x402 News Update #2', date: 'Oct 29, 2025 - 9:03 AM' },
+    { id: 3, image: '/twitter3.png', title: 'x402 News Update #3', date: 'Oct 29, 2025 - 9:03 AM' },
+    { id: 4, image: '/twitter4.png', title: 'x402 News Update #4', date: 'Oct 29, 2025 - 9:03 AM' },
+    { id: 5, image: '/twitter5.png', title: 'x402 News Update #5', date: 'Oct 29, 2025 - 9:03 AM' },
+    { id: 6, image: '/twitter6.png', title: 'x402 News Update #6', date: 'Oct 29, 2025 - 9:04 AM' },
+    { id: 7, image: '/twitter7.png', title: 'x402 News Update #7', date: 'Oct 29, 2025 - 9:06 AM' },
+    { id: 8, image: '/twitter8.png', title: 'x402 News Update #8', date: 'Oct 29, 2025 - 9:06 AM' },
+    { id: 9, image: '/twitter9.png', title: 'x402 News Update #9', date: 'Oct 29, 2025 - 9:06 AM' },
+    { id: 10, image: '/twitter10.png', title: 'x402 News Update #10', date: 'Oct 29, 2025 - 9:06 AM' },
+    { id: 11, image: '/twitter11.png', title: 'x402 News Update #11', date: 'Oct 29, 2025 - 9:06 AM' },
+    { id: 12, image: '/twitter12.png', title: 'x402 News Update #12', date: 'Oct 29, 2025 - 9:07 AM' },
+    { id: 13, image: '/twitter13.png', title: 'x402 News Update #13', date: 'Oct 29, 2025 - 9:07 AM' },
   ];
 
   return (
@@ -94,11 +93,10 @@ export default function XFeedApp() {
                          hover:border-green-400 transition-all cursor-pointer hover:shadow-[0_0_20px_rgba(0,255,65,0.3)]"
               >
                 <div className="relative w-full h-64 bg-green-400/5">
-                  <Image
+                  <img
                     src={news.image}
                     alt={news.title}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute top-2 right-2 bg-black/80 backdrop-blur-sm px-2 py-1 rounded">
                     <span className="text-green-400 font-mono text-xs font-bold">#{news.id}</span>
@@ -127,11 +125,10 @@ export default function XFeedApp() {
                          hover:border-green-400 transition-all cursor-pointer hover:shadow-[0_0_20px_rgba(0,255,65,0.3)] p-4"
               >
                 <div className="relative w-48 h-32 flex-shrink-0 bg-green-400/5 rounded overflow-hidden">
-                  <Image
+                  <img
                     src={news.image}
                     alt={news.title}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
                 <div className="flex-1 flex flex-col justify-between">
@@ -172,11 +169,10 @@ export default function XFeedApp() {
             
             {/* Full Screenshot */}
             <div className="relative w-full h-[80vh] bg-black border-2 border-green-400 rounded-lg overflow-hidden">
-              <Image
+              <img
                 src={newsItems.find(n => n.id === selectedNews)?.image || ''}
                 alt={newsItems.find(n => n.id === selectedNews)?.title || ''}
-                fill
-                className="object-contain"
+                className="w-full h-full object-contain"
               />
             </div>
             
