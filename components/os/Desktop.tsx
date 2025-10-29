@@ -410,7 +410,7 @@ export default function Desktop() {
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
             <div className="group relative bg-green-400/10 border border-green-400/30 rounded px-3 py-1 flex items-center gap-2 hover:bg-green-400/20 transition-all">
               <span className="text-green-400 font-mono text-xs font-bold">Contract:</span>
-              <span className="text-green-400/80 font-mono text-xs">CA WILL LIVE SOON</span>
+              <span className="text-green-400/80 font-mono text-xs">DyZ8xUQCPFciLE3uXxDMkx4rLkUPiumoMw1hHyyWpump</span>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText('CA WILL LIVE SOON');
