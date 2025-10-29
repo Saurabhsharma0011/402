@@ -1,14 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { airdropDevnetSOL } from '@/utils/x402Token';
+import { checkRateLimit, getClientIdentifier, isValidSolanaAddress } from '@/lib/api-security';
 
 export async function POST(request: NextRequest) {
   try {
     const { walletAddress, amount = 1 } = await request.json();
     
-    if (!walletAddress) {
+    // Validate wallet address
+    if (!walletAddress || !isValidSolanaAddress(walletAddress)) {
       return NextResponse.json(
-        { error: 'Wallet address is required' },
+        { error: 'Invalid wallet address' },
         { status: 400 }
+      );
+    }
+
+    // Validate amount
+    if (amount <= 0 || amount > 2) {
+      return NextResponse.json(
+        { error: 'Invalid SOL amount. Maximum 2 SOL per request.' },
+        { status: 400 }
+      );
+    }
+
+    // Rate limiting (stricter for SOL)
+    const clientId = getClientIdentifier(request, walletAddress);
+    const rateLimit = checkRateLimit(`sol_airdrop_${clientId}`);
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please try again later.' },
+        { status: 429 }
       );
     }
     
@@ -19,7 +40,10 @@ export async function POST(request: NextRequest) {
       success: true,
       signature,
       amount,
-      message: `Successfully airdropped ${amount} SOL`
+      message: `Successfully airdropped ${amount} SOL`,
+      rateLimit: {
+        remaining: rateLimit.remaining
+      }
     });
     
   } catch (error: any) {

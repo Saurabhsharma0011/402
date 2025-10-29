@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import BootSequence from '@/components/os/BootSequence';
 import LoginTerminal from '@/components/os/LoginTerminal';
 import Desktop from '@/components/os/Desktop';
+import MobileWarning from '@/components/MobileWarning';
 
 export default function Home() {
   const { authenticated, ready, logout } = usePrivy();
@@ -93,5 +94,10 @@ export default function Home() {
   }
 
   // Show desktop OS when authenticated
-  return <Desktop />;
+  return (
+    <>
+      <MobileWarning />
+      <Desktop />
+    </>
+  );
 }

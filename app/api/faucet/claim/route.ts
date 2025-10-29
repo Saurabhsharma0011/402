@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { transferX402Tokens } from '@/utils/x402Token';
+import { checkRateLimit, getClientIdentifier, isValidSolanaAddress } from '@/lib/api-security';
 
 export async function POST(request: NextRequest) {
   try {
     const { walletAddress, amount } = await request.json();
     
-    if (!walletAddress) {
+    // Validate wallet address
+    if (!walletAddress || !isValidSolanaAddress(walletAddress)) {
       return NextResponse.json(
-        { error: 'Wallet address is required' },
+        { error: 'Invalid wallet address' },
         { status: 400 }
+      );
+    }
+
+    // Rate limiting
+    const clientId = getClientIdentifier(request, walletAddress);
+    const rateLimit = checkRateLimit(`faucet_${clientId}`);
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please try again later.' },
+        { status: 429 }
       );
     }
     
@@ -19,7 +32,10 @@ export async function POST(request: NextRequest) {
       success: true,
       signature,
       amount,
-      message: `Successfully transferred ${amount} x402 tokens`
+      message: `Successfully transferred ${amount} x402 tokens`,
+      rateLimit: {
+        remaining: rateLimit.remaining
+      }
     });
     
   } catch (error: any) {

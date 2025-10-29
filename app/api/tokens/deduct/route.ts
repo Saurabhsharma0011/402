@@ -1,21 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getX402Balance } from '@/utils/x402Token';
+import { checkRateLimit, getClientIdentifier, isValidSolanaAddress } from '@/lib/api-security';
 
 export async function POST(request: NextRequest) {
   try {
     const { walletAddress, amount } = await request.json();
     
-    if (!walletAddress) {
+    // Validate wallet address
+    if (!walletAddress || !isValidSolanaAddress(walletAddress)) {
       return NextResponse.json(
-        { error: 'Wallet address is required' },
+        { error: 'Invalid wallet address' },
         { status: 400 }
       );
     }
 
+    // Validate amount
     if (!amount || amount <= 0) {
       return NextResponse.json(
         { error: 'Invalid amount' },
         { status: 400 }
+      );
+    }
+
+    // Rate limiting
+    const clientId = getClientIdentifier(request, walletAddress);
+    const rateLimit = checkRateLimit(`deduct_${clientId}`);
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many app interactions. Please wait a moment.' },
+        { status: 429 }
       );
     }
 
@@ -46,7 +60,10 @@ export async function POST(request: NextRequest) {
       walletAddress,
       amount,
       previousBalance: currentBalance,
-      newBalance: currentBalance - amount
+      newBalance: currentBalance - amount,
+      rateLimit: {
+        remaining: rateLimit.remaining
+      }
     });
     
   } catch (error: any) {
